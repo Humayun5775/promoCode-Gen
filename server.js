@@ -1,6 +1,8 @@
 const express = require('express');
 const sql = require('mssql');
 const { poolPromise } = require('./config/db'); // Import db config
+const { parse } = require('json2csv'); // Import json2csv
+const fs = require('fs'); // Import file system
 
 // Initialize Express
 const app = express();
@@ -39,14 +41,29 @@ app.post('/generatePromoCodes', async (req, res) => {
         return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Insert Promo Codes using Stored Procedure and return results
     try {
         const promoCodes = await insertPromoCodesUsingSP(baseName, numCodes, discountType, promoAmount, numberOfUses, expireDate);
-        return res.status(200).json({
-            message: `${numCodes} promo codes generated and inserted into the database.`,
-            promoCodes: promoCodes // Include the promo codes in the response
-        });
+        console.log("succ");
+        // Convert JSON to CSV
+        const csv = parse(promoCodes);
+
+        // Define file name and path
+        const fileName = 'promoCodes.csv';
+        const filePath = `./${fileName}`;
+
+        // Write CSV to file
+        fs.writeFileSync(filePath, csv);
+
+        // Send CSV file as response
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        res.setHeader('Content-Type', 'text/csv');
+        res.send(csv);
+
+        // Optionally, delete the file after sending (if you don't want to keep it)
+        fs.unlinkSync(filePath);
+
     } catch (err) {
+        console.log(err);
         return res.status(500).json({ error: 'Error generating and inserting promo codes.' });
     }
 });
