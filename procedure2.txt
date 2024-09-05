@@ -1,0 +1,54 @@
+ALTER PROCEDURE GenerateAndInsertPromoCodes
+    @BaseName NVARCHAR(50),
+    @NumCodes INT,
+    @DiscountType NVARCHAR(20),
+    @PromoAmount DECIMAL(10, 2),
+    @NumberOfUses INT,
+    @ExpireDate DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Create a table variable to hold the promo codes
+    DECLARE @PromoCodesTable TABLE (
+        Code NVARCHAR(50),
+        DiscountType NVARCHAR(20),
+        Amount DECIMAL(10, 2),
+        NumberOfUses INT,
+        ExpireDate DATE
+    );
+
+    -- Loop to generate promo codes
+    DECLARE @Counter INT = 0;
+    WHILE @Counter < @NumCodes
+    BEGIN
+        -- Generate a UUID-based unique code and slice it based on the desired length
+        DECLARE @Code NVARCHAR(50);
+        DECLARE @CodeLength INT = CASE WHEN RAND() < 0.5 THEN 4 ELSE 5 END;
+        SET @Code = UPPER(SUBSTRING(CONVERT(NVARCHAR(36), NEWID()), 1, @CodeLength));
+
+        -- Check if the code already exists in the promocode table
+        IF NOT EXISTS (SELECT 1 FROM promocode WHERE code = @BaseName + '-' + @Code)
+        BEGIN
+            -- Insert into the table variable
+            INSERT INTO @PromoCodesTable (Code, DiscountType, Amount, NumberOfUses, ExpireDate)
+            VALUES (@BaseName + '-' + @Code, @DiscountType, @PromoAmount, @NumberOfUses, @ExpireDate);
+        END
+        ELSE
+        BEGIN
+            -- If the code already exists, decrement the counter to retry
+            SET @Counter = @Counter - 1;
+        END
+
+        SET @Counter = @Counter + 1;
+    END
+
+    -- Insert the data from the table variable into the actual table
+    INSERT INTO promocode (code, discountType, amount, numberOfUses, expireDate)
+    SELECT Code, DiscountType, Amount, NumberOfUses, ExpireDate
+    FROM @PromoCodesTable;
+
+    -- Return the data from the table variable
+    SELECT Code, DiscountType, Amount, NumberOfUses, ExpireDate
+    FROM @PromoCodesTable;
+END;
